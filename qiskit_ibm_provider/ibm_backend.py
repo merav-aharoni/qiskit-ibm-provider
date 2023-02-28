@@ -314,6 +314,7 @@ class IBMBackend(Backend):
         """
         return self._configuration.meas_map
 
+
     @property
     def target(self) -> Target:
         """A :class:`qiskit.transpiler.Target` object for the backend.
@@ -615,7 +616,7 @@ class IBMBackend(Backend):
                 "getting backend status: {}".format(str(ex))
             ) from ex
 
-    def defaults(self, refresh: bool = False) -> Optional[PulseDefaults]:
+    def defaults(self, refresh: bool = False, datetime: Optional[python_datetime] = None) -> Optional[PulseDefaults]:
         """Return the pulse defaults for the backend.
 
         The schema for default pulse configuration can be found in
@@ -629,15 +630,23 @@ class IBMBackend(Backend):
         Returns:
             The backend pulse defaults or ``None`` if the backend does not support pulse.
         """
-        if refresh or self._defaults is None:
+        if datetime and not isinstance(datetime, python_datetime):
+            raise TypeError("'{}' is not of type 'datetime'.")
+
+        if datetime:
+            datetime = local_to_utc(datetime)
+
+        if datetime or refresh or self._defaults is None:
             api_defaults = self.provider._runtime_client.backend_pulse_defaults(
-                self.name
+                self.name, datetime=datetime
             )
             if api_defaults:
-                self._defaults = defaults_from_server_data(api_defaults)
+                backend_defaults = defaults_from_server_data(api_defaults)
             else:
-                self._defaults = None
-
+                backend_defaults = None
+            if datetime:  # Don't cache result.
+                return backend_defaults
+            self._defaults = backend_defaults
         return self._defaults
 
     def configuration(
